@@ -31,6 +31,11 @@ cloudinary.config({
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+// Root endpoint to prevent "Cannot GET /"
+app.get('/', (req, res) => {
+  res.send('CS Department API Server is running.');
+});
+
 // Basic Health Check Endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running normally.' });
