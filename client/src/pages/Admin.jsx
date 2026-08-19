@@ -63,7 +63,10 @@ function Admin() {
       const uploadData = new FormData();
       uploadData.append('file', file);
       try {
-        const uploadRes = await fetch('http://localhost:5000/api/upload-document', {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/';
+        const uploadUrl = apiUrl.endsWith('/') ? `${apiUrl}upload-document` : `${apiUrl}/upload-document`;
+        
+        const uploadRes = await fetch(uploadUrl, {
           method: 'POST',
           body: uploadData,
         });

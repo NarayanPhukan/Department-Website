@@ -21,7 +21,10 @@ export function HighlightsManager({ pages, onSaved }) {
   const uploadImage = async (file) => {
     const formData = new FormData();
     formData.append('image', file);
-    const res = await fetch('http://localhost:5000/api/upload', {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/';
+    const uploadUrl = apiUrl.endsWith('/') ? `${apiUrl}upload` : `${apiUrl}/upload`;
+    
+    const res = await fetch(uploadUrl, {
       method: 'POST',
       body: formData,
     });
