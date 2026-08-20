@@ -26,7 +26,7 @@ function About() {
 
       <main className="flex-grow">
         <section className="max-w-[1280px] mx-auto px-margin py-xl flex flex-col md:flex-row gap-lg items-center">
-          <div className="flex-1">
+          <div className="flex-1 animate-fade-in-up">
             <h1 className="font-display-lg text-display-lg text-on-surface mb-md">{content.hero?.title}</h1>
             <p className="font-body-lg text-body-lg text-on-surface-variant mb-lg">
               {content.hero?.description}
@@ -35,8 +35,8 @@ function About() {
               <Link to="/apply" className="bg-tertiary text-on-tertiary px-lg py-sm font-label-md text-label-md rounded">Explore Programs</Link>
             </div>
           </div>
-          <div className="flex-1 w-full h-[400px] rounded-xl overflow-hidden border border-outline-variant">
-            <img className="w-full h-full object-cover" src={content.hero?.image} alt="Hero" />
+          <div className="flex-1 w-full h-[400px] rounded-xl overflow-hidden border border-outline-variant animate-fade-in-up" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+            <img className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" src={content.hero?.image} alt="Hero" />
           </div>
         </section>
 
@@ -46,7 +46,7 @@ function About() {
             <h2 className="font-headline-lg text-headline-lg text-on-surface mb-lg">{content.history_title}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-md auto-rows-[250px]">
               {(content.history || []).map((item, idx) => (
-                <div key={idx} className={`${item.isLarge ? 'md:col-span-2' : ''} bg-surface-container-lowest border border-outline-variant p-md rounded-lg flex flex-col justify-between hover:border-secondary transition-colors relative overflow-hidden group`}>
+                <div key={idx} className={`${item.isLarge ? 'md:col-span-2' : ''} bg-surface-container-lowest border border-outline-variant p-md rounded-lg flex flex-col justify-between hover:border-secondary hover:shadow-level-2 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group scroll-reveal-up`}>
                   <div className="z-10">
                     <h3 className="font-headline-md text-headline-md text-on-surface mb-xs">{item.title}</h3>
                     <p className="font-body-md text-body-md text-on-surface-variant">{item.description}</p>
@@ -67,9 +67,9 @@ function About() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-md">
             {(content.faculty || []).map((fac, idx) => (
-              <div key={idx} className="bg-surface-container-lowest border border-outline-variant rounded-lg p-md hover:shadow-level-2 transition-shadow">
+              <div key={idx} className="bg-surface-container-lowest border border-outline-variant rounded-lg p-md hover:shadow-level-3 hover:-translate-y-2 transition-all duration-300 group scroll-reveal-scale">
                 <div className="w-full aspect-square rounded-full overflow-hidden mb-sm bg-surface-container-high border border-outline">
-                  <img className="w-full h-full object-cover" src={fac.image} alt={fac.name} />
+                  <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src={fac.image} alt={fac.name} />
                 </div>
                 <h3 className="font-headline-md text-headline-md text-on-surface">{fac.name}</h3>
                 <p className="font-label-md text-label-md text-secondary mb-xs">{fac.title}</p>
@@ -85,8 +85,8 @@ function About() {
             <h2 className="font-headline-lg text-headline-lg mb-lg">Core Research Areas</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-lg">
               {(content.research || []).map((area, idx) => (
-                <div key={idx} className="border-t border-outline py-md group">
-                  <div className="flex items-center gap-sm mb-sm">
+                <div key={idx} className="border-t border-outline py-md group scroll-reveal-up">
+                  <div className="flex items-center gap-sm mb-sm group-hover:translate-x-2 transition-transform duration-300">
                     <span className="material-symbols-outlined text-secondary-fixed-dim">{area.icon}</span>
                     <h3 className="font-headline-md text-headline-md">{area.title}</h3>
                   </div>

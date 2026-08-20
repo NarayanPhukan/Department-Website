@@ -10,6 +10,9 @@ function TopNavBar() {
     { path: '/', label: 'Home' },
     { path: '/about', label: 'About' },
     { path: '/subjects', label: 'Subjects' },
+    { path: '/alumni', label: 'Alumni' },
+    { path: '/batches', label: 'Our Batches' },
+    { path: '/coding-zone', label: 'Coding Zone' },
     { path: '/contact', label: 'Contact' }
   ];
 

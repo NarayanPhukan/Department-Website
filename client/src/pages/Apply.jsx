@@ -13,6 +13,7 @@ function Apply() {
   const [enrollmentInput, setEnrollmentInput] = useState('');
   const [isChecking, setIsChecking] = useState(false);
   const [existingData, setExistingData] = useState(null);
+  const [appliedSubjectIds, setAppliedSubjectIds] = useState([]);
   const [subjectCode, setSubjectCode] = useState('');
   const [subjectCredit, setSubjectCredit] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -39,18 +40,25 @@ function Apply() {
       .from('applications')
       .select('*')
       .eq('enrollment_id', enrollmentInput)
-      .maybeSingle(); // maybeSingle returns null without throwing if not found
+      .order('created_at', { ascending: false });
     
-    if (data && !error) {
-      setExistingData(data);
-      setSubjectCode(data.subject_code || '');
-      setSelectedSemester(data.current_semester || '');
-      setSelectedProgram(data.current_program || '');
-      const sub = subjects.find(s => s.id == data.subject_id);
-      if (sub) setSubjectCredit(sub.credits || '');
-      toast.success('Existing application found and loaded. You can now update your details.');
+    if (data && data.length > 0 && !error) {
+      if (window.confirm('Existing student found! Want to apply for another subject?')) {
+        const latestApp = data[0];
+        setExistingData(latestApp);
+        setAppliedSubjectIds(data.map(app => app.subject_id));
+        setSubjectCode('');
+        setSelectedSemester(latestApp.current_semester || '');
+        setSelectedProgram(latestApp.current_program || '');
+        setSubjectCredit('');
+        toast.success('Your profile is loaded. You can now select a new subject to apply for.');
+      } else {
+        setExistingData(null);
+        setAppliedSubjectIds([]);
+      }
     } else {
       setExistingData(null);
+      setAppliedSubjectIds([]);
       setSubjectCode('');
       setSubjectCredit('');
       setSelectedSemester('');
@@ -115,13 +123,35 @@ function Apply() {
       marksheet_url: marksheet_url
     };
 
+    const password = formData.get('password');
+    if (!existingData && password) {
+      if (password.length < 8 || !/\d/.test(password) || !/[A-Z]/.test(password)) {
+        toast.error("Password must be at least 8 characters long, contain at least one number and one uppercase letter.");
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     let error;
     if (existingData) {
-      const res = await supabase.from('applications').update(applicationData).eq('id', existingData.id);
+      // If student exists, we append a NEW row instead of updating the old one
+      const res = await supabase.from('applications').insert([applicationData]);
       error = res.error;
     } else {
       const res = await supabase.from('applications').insert([applicationData]);
       error = res.error;
+      
+      // On new application, sign the user up
+      if (!error && password) {
+        const { error: authError } = await supabase.auth.signUp({
+          email: applicationData.email,
+          password: password,
+        });
+        if (authError) {
+          console.error("Auth sign up error:", authError);
+          // Don't fail the whole application if auth fails, but log it
+        }
+      }
     }
 
     if (error) {
@@ -211,8 +241,9 @@ function Apply() {
                   type="text"
                   name="fullName"
                   defaultValue={existingData?.full_name || ''}
+                  readOnly={!!existingData}
                   placeholder="e.g. Ada Lovelace"
-                  className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-surface-dim focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  className={`w-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 ${existingData ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-surface-dim'}`}
                   required
                 />
               </div>
@@ -226,8 +257,9 @@ function Apply() {
                   type="text"
                   name="enrollmentID"
                   defaultValue={existingData?.enrollment_id || enrollmentInput}
+                  readOnly={!!existingData}
                   placeholder="CS-2024-001"
-                  className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-surface-dim focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  className={`w-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 ${existingData ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-surface-dim'}`}
                   required
                 />
               </div>
@@ -256,11 +288,29 @@ function Apply() {
                   type="email"
                   name="email"
                   defaultValue={existingData?.email || ''}
+                  readOnly={!!existingData}
                   placeholder="student@cs.university.edu"
-                  className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-surface-dim focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  className={`w-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 ${existingData ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-surface-dim'}`}
                   required
                 />
               </div>
+
+              {/* Create Password */}
+              {!existingData && (
+                <div>
+                  <label className="block font-mono text-sm mb-2 text-gray-700 dark:text-gray-300">
+                    createPassword<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    placeholder="At least 8 chars, 1 uppercase, 1 number"
+                    className="w-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-surface-dim focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    required={!existingData}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This will be used to log into the portal with your Enrollment ID.</p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

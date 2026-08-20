@@ -84,6 +84,108 @@ app.post('/api/upload-document', upload.single('file'), async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { v4: uuidv4 } = require('uuid');
+
+app.post('/api/execute', (req, res) => {
+  const { language, source } = req.body;
+  
+  if (!source) {
+    return res.status(400).json({ error: 'No source code provided' });
+  }
+
+  const tmpDir = os.tmpdir();
+  const fileId = uuidv4();
+  
+  let fileName, command;
+  let javaDir = null;
+
+  try {
+    if (language === 'python') {
+      fileName = path.join(tmpDir, `${fileId}.py`);
+      command = `python3 ${fileName}`;
+    } else if (language === 'javascript') {
+      fileName = path.join(tmpDir, `${fileId}.js`);
+      command = `node ${fileName}`;
+    } else if (language === 'java') {
+      javaDir = path.join(tmpDir, fileId);
+      fs.mkdirSync(javaDir);
+      // We assume the user's code uses "public class Main"
+      fileName = path.join(javaDir, `Main.java`);
+      command = `javac ${fileName} && java -cp ${javaDir} Main`;
+    } else if (language === 'c') {
+      fileName = path.join(tmpDir, `${fileId}.c`);
+      const outName = path.join(tmpDir, `${fileId}`);
+      const zigPath = fs.existsSync('/usr/local/bin/zig') ? '/usr/local/bin/zig' : '/home/zerosync/.local/bin/zig';
+      command = `${zigPath} cc ${fileName} -o ${outName} && ${outName}`;
+    } else if (language === 'cpp' || language === 'c++') {
+      fileName = path.join(tmpDir, `${fileId}.cpp`);
+      const outName = path.join(tmpDir, `${fileId}`);
+      const zigPath = fs.existsSync('/usr/local/bin/zig') ? '/usr/local/bin/zig' : '/home/zerosync/.local/bin/zig';
+      command = `${zigPath} c++ ${fileName} -o ${outName} && ${outName}`;
+    } else if (language === 'bash') {
+      fileName = path.join(tmpDir, `${fileId}.sh`);
+      command = `bash ${fileName}`;
+    } else if (language === 'perl') {
+      fileName = path.join(tmpDir, `${fileId}.pl`);
+      command = `perl ${fileName}`;
+    } else {
+      return res.status(400).json({ error: 'Unsupported language. Supported: python, javascript, java, c, cpp, bash, perl.' });
+    }
+
+    fs.writeFile(fileName, source, (err) => {
+      if (err) return res.status(500).json({ error: 'Failed to create temp file' });
+      
+      // Execute with a timeout of 5 seconds to prevent infinite loops
+      exec(command, { timeout: 5000 }, (execErr, stdout, stderr) => {
+        // Clean up temp files
+        try {
+          if (javaDir) {
+            fs.rmSync(javaDir, { recursive: true, force: true });
+          } else {
+            fs.unlink(fileName, () => {});
+            if (language === 'c' || language === 'cpp' || language === 'c++') {
+              fs.unlink(path.join(tmpDir, `${fileId}`), () => {});
+            }
+          }
+        } catch (cleanupErr) {
+          console.error("Cleanup error:", cleanupErr);
+        }
+        
+        let runOutput = '';
+        if (execErr && execErr.killed) {
+          runOutput = 'Error: Execution timed out (exceeded 5 seconds).';
+        } else if (execErr) {
+          // Failure (e.g. compile error)
+          runOutput = stderr || stdout || execErr.message;
+        } else {
+          // Success
+          runOutput = stdout || '';
+          if (stderr && !stdout) {
+            runOutput = stderr;
+          }
+        }
+        
+        res.json({
+          run: {
+            output: runOutput,
+            code: execErr ? 1 : 0
+          }
+        });
+      });
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Server error: ${err.message}` });
+  }
 });
+
+if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+}
+
+module.exports = app;

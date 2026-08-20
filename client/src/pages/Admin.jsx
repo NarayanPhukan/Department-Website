@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { HeroManager, HighlightsManager, ContactManager, EventsManager } from '../components/CMSManagers';
+import { HeroManager, HighlightsManager, ContactManager, EventsManager, AboutManager, AlumniManager, BatchesManager } from '../components/CMSManagers';
 import { toast } from 'react-hot-toast';
 
 function Admin() {
@@ -115,6 +115,17 @@ function Admin() {
     else fetchData();
   };
 
+  const handleDeleteStudent = async (id) => {
+    if (window.confirm("Are you sure you want to permanently delete this student from the database?")) {
+      const { error } = await supabase.from('applications').delete().eq('id', id);
+      if (error) toast.error("Error deleting student: " + error.message);
+      else {
+        toast.success("Student deleted successfully");
+        fetchData();
+      }
+    }
+  };
+
   const pendingApps = applications.filter(a => a.status === 'Pending').length;
 
   const getAppSubject = (subjectCode) => subjects.find(s => s.code === subjectCode);
@@ -178,6 +189,18 @@ function Admin() {
           <button onClick={() => setActiveTab('contact')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'contact' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
             <span className="material-symbols-outlined" data-icon="contact_page">contact_page</span>
             <span className="font-label-md text-label-md">Contact</span>
+          </button>
+          <button onClick={() => setActiveTab('about')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'about' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
+            <span className="material-symbols-outlined" data-icon="info">info</span>
+            <span className="font-label-md text-label-md">About Page</span>
+          </button>
+          <button onClick={() => setActiveTab('alumni')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'alumni' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
+            <span className="material-symbols-outlined" data-icon="school">school</span>
+            <span className="font-label-md text-label-md">Alumni</span>
+          </button>
+          <button onClick={() => setActiveTab('batches')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'batches' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
+            <span className="material-symbols-outlined" data-icon="groups">groups</span>
+            <span className="font-label-md text-label-md">Our Batches</span>
           </button>
         </div>
         <div className="mt-auto border-t border-outline-variant pt-sm flex flex-col gap-base">
@@ -290,6 +313,7 @@ function Admin() {
                       <th className="px-md py-sm font-medium">Type</th>
                       <th className="px-md py-sm font-medium">Sem</th>
                       <th className="px-md py-sm font-medium">GPA</th>
+                      <th className="px-md py-sm font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="font-body-md text-body-md text-on-surface divide-y divide-outline-variant">
@@ -310,12 +334,17 @@ function Admin() {
                           </td>
                           <td className="px-md py-sm">{sub ? sub.semester : 'N/A'}</td>
                           <td className="px-md py-sm font-medium text-secondary">{student.current_gpa ? student.current_gpa.toFixed(2) : 'N/A'}</td>
+                          <td className="px-md py-sm text-right">
+                            <button onClick={() => handleDeleteStudent(student.id)} className="text-on-surface-variant hover:text-error transition-colors" title="Delete Student">
+                              <span className="material-symbols-outlined text-[20px]">delete</span>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
                     {enrolledStudents.length === 0 && (
                       <tr>
-                        <td colSpan="6" className="px-md py-xl text-center text-on-surface-variant">
+                        <td colSpan="7" className="px-md py-xl text-center text-on-surface-variant">
                           No enrolled students match these filters.
                         </td>
                       </tr>
@@ -331,6 +360,9 @@ function Admin() {
         {activeTab === 'highlights' && <HighlightsManager pages={pages} onSaved={fetchData} />}
         {activeTab === 'events' && <EventsManager pages={pages} onSaved={fetchData} />}
         {activeTab === 'contact' && <ContactManager pages={pages} onSaved={fetchData} />}
+        {activeTab === 'about' && <AboutManager pages={pages} onSaved={fetchData} />}
+        {activeTab === 'alumni' && <AlumniManager pages={pages} onSaved={fetchData} />}
+        {activeTab === 'batches' && <BatchesManager pages={pages} onSaved={fetchData} />}
 
         {activeTab === 'applications' && (
           <div className="flex flex-col gap-xl">

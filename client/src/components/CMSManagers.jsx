@@ -483,3 +483,543 @@ export function EventsManager({ pages, onSaved }) {
     </div>
   );
 }
+
+export function AboutManager({ pages, onSaved }) {
+  const [content, setContent] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const aboutPage = pages.find(p => p.slug === 'about');
+    if (aboutPage && aboutPage.content) {
+      setContent(aboutPage.content);
+    }
+  }, [pages]);
+
+  const uploadImage = async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/';
+    const uploadUrl = apiUrl.endsWith('/') ? `${apiUrl}upload` : `${apiUrl}/upload`;
+    const res = await fetch(uploadUrl, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error('Failed to upload image');
+    const data = await res.json();
+    return data.url;
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const formData = new FormData(e.target);
+      const newContent = { ...content };
+
+      let heroImage = content.hero?.image || '';
+      const heroFile = formData.get('hero_image');
+      if (heroFile && heroFile.size > 0) heroImage = await uploadImage(heroFile);
+      
+      newContent.hero = {
+        title: formData.get('hero_title'),
+        description: formData.get('hero_desc'),
+        image: heroImage
+      };
+
+      newContent.history_title = formData.get('history_title');
+      const updatedHistory = await Promise.all((content.history || []).map(async (item, idx) => {
+        return {
+          title: formData.get(`hist_title_${idx}`),
+          description: formData.get(`hist_desc_${idx}`),
+          year: formData.get(`hist_year_${idx}`),
+          isLarge: formData.get(`hist_large_${idx}`) === 'on'
+        };
+      }));
+      newContent.history = updatedHistory;
+
+      const updatedFaculty = await Promise.all((content.faculty || []).map(async (fac, idx) => {
+        let facImage = fac.image || '';
+        const facFile = formData.get(`fac_img_${idx}`);
+        if (facFile && facFile.size > 0) facImage = await uploadImage(facFile);
+
+        return {
+          name: formData.get(`fac_name_${idx}`),
+          title: formData.get(`fac_title_${idx}`),
+          desc: formData.get(`fac_desc_${idx}`),
+          image: facImage
+        };
+      }));
+      newContent.faculty = updatedFaculty;
+
+      const updatedResearch = await Promise.all((content.research || []).map(async (res, idx) => {
+        return {
+          title: formData.get(`res_title_${idx}`),
+          desc: formData.get(`res_desc_${idx}`),
+          icon: formData.get(`res_icon_${idx}`)
+        };
+      }));
+      newContent.research = updatedResearch;
+
+      const { error } = await supabase.from('pages').update({ content: newContent }).eq('slug', 'about');
+      if (error) throw error;
+      alert('About page updated successfully!');
+      onSaved();
+    } catch (err) {
+      alert(err.message);
+    }
+    setIsSaving(false);
+  };
+
+  const handleAddHistory = () => setContent(prev => ({ ...prev, history: [...(prev.history || []), { title: '', description: '', year: '', isLarge: false }] }));
+  const handleRemoveHistory = (idx) => setContent(prev => ({ ...prev, history: prev.history.filter((_, i) => i !== idx) }));
+  
+  const handleAddFaculty = () => setContent(prev => ({ ...prev, faculty: [...(prev.faculty || []), { name: '', title: '', desc: '', image: '' }] }));
+  const handleRemoveFaculty = (idx) => setContent(prev => ({ ...prev, faculty: prev.faculty.filter((_, i) => i !== idx) }));
+  
+  const handleAddResearch = () => setContent(prev => ({ ...prev, research: [...(prev.research || []), { title: '', desc: '', icon: 'science' }] }));
+  const handleRemoveResearch = (idx) => setContent(prev => ({ ...prev, research: prev.research.filter((_, i) => i !== idx) }));
+
+  if (!content) return <div>Loading...</div>;
+
+  return (
+    <div className="animate-in fade-in duration-300">
+      <header className="flex justify-between items-end border-b border-outline-variant pb-sm mb-lg">
+        <div>
+          <h2 className="font-headline-lg text-headline-lg text-primary">About Page Management</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-xs">Manage the content of the About page.</p>
+        </div>
+      </header>
+
+      <form onSubmit={handleSave} className="flex flex-col gap-xl pb-xl">
+        {/* Hero Section */}
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant grid grid-cols-1 md:grid-cols-2 gap-md">
+          <h4 className="col-span-full font-label-lg text-secondary border-b border-outline-variant pb-2">Hero Section</h4>
+          <div className="col-span-full">
+            <label className="block font-label-md mb-2">Title</label>
+            <input name="hero_title" defaultValue={content.hero?.title} className="w-full bg-surface border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+          </div>
+          <div className="col-span-full">
+            <label className="block font-label-md mb-2">Description</label>
+            <textarea name="hero_desc" defaultValue={content.hero?.description} className="w-full bg-surface border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" rows="3" required></textarea>
+          </div>
+          <div className="col-span-full">
+            <label className="block font-label-md mb-2">Hero Image</label>
+            <input name="hero_image" type="file" accept="image/*" className="w-full bg-surface border border-outline-variant rounded p-2" />
+            {content.hero?.image && (
+              <div className="mt-2 relative inline-block">
+                <img src={content.hero.image} alt="Preview" className="h-16 rounded border border-outline" />
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* History Section */}
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant flex flex-col gap-md">
+          <div className="flex justify-between items-center border-b border-outline-variant pb-2">
+            <h4 className="font-label-lg text-secondary">History Timeline</h4>
+            <button type="button" onClick={handleAddHistory} className="bg-secondary text-on-secondary px-sm py-1 rounded-lg text-xs flex items-center gap-1 hover:opacity-90">
+              <span className="material-symbols-outlined text-[14px]">add</span> Add History
+            </button>
+          </div>
+          <div>
+            <label className="block font-label-md mb-2">Timeline Title</label>
+            <input name="history_title" defaultValue={content.history_title} className="w-full bg-surface border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+          </div>
+          {(content.history || []).map((item, idx) => (
+            <div key={idx} className="bg-surface p-md rounded-xl border border-outline grid grid-cols-1 md:grid-cols-2 gap-md relative group">
+              <button type="button" onClick={() => handleRemoveHistory(idx)} className="absolute top-md right-md text-error hover:bg-error-container p-1 rounded transition-colors" title="Remove History">
+                <span className="material-symbols-outlined">delete</span>
+              </button>
+              <div className="col-span-full pr-8">
+                <label className="block font-label-md mb-2">Item Title</label>
+                <input name={`hist_title_${idx}`} defaultValue={item.title} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div className="col-span-full">
+                <label className="block font-label-md mb-2">Description</label>
+                <textarea name={`hist_desc_${idx}`} defaultValue={item.description} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" rows="2" required></textarea>
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Year</label>
+                <input name={`hist_year_${idx}`} defaultValue={item.year} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div className="flex items-center gap-2 mt-auto pb-2">
+                <input type="checkbox" name={`hist_large_${idx}`} defaultChecked={item.isLarge} id={`hist_large_${idx}`} className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary" />
+                <label htmlFor={`hist_large_${idx}`} className="font-label-md">Is Large (Takes 2 columns)</label>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        {/* Faculty Section */}
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant flex flex-col gap-md">
+          <div className="flex justify-between items-center border-b border-outline-variant pb-2">
+            <h4 className="font-label-lg text-secondary">Faculty</h4>
+            <button type="button" onClick={handleAddFaculty} className="bg-secondary text-on-secondary px-sm py-1 rounded-lg text-xs flex items-center gap-1 hover:opacity-90">
+              <span className="material-symbols-outlined text-[14px]">add</span> Add Faculty
+            </button>
+          </div>
+          {(content.faculty || []).map((fac, idx) => (
+            <div key={idx} className="bg-surface p-md rounded-xl border border-outline grid grid-cols-1 md:grid-cols-2 gap-md relative group">
+              <button type="button" onClick={() => handleRemoveFaculty(idx)} className="absolute top-md right-md text-error hover:bg-error-container p-1 rounded transition-colors" title="Remove Faculty">
+                <span className="material-symbols-outlined">delete</span>
+              </button>
+              <div className="col-span-full pr-8">
+                <label className="block font-label-md mb-2">Name</label>
+                <input name={`fac_name_${idx}`} defaultValue={fac.name} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Title</label>
+                <input name={`fac_title_${idx}`} defaultValue={fac.title} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Profile Image</label>
+                <input name={`fac_img_${idx}`} type="file" accept="image/*" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2" />
+                {fac.image && (
+                  <div className="mt-2 relative inline-block">
+                    <img src={fac.image} alt="Preview" className="h-12 w-12 rounded-full object-cover border border-outline" />
+                  </div>
+                )}
+              </div>
+              <div className="col-span-full">
+                <label className="block font-label-md mb-2">Description</label>
+                <textarea name={`fac_desc_${idx}`} defaultValue={fac.desc} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" rows="2" required></textarea>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        {/* Research Section */}
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant flex flex-col gap-md">
+          <div className="flex justify-between items-center border-b border-outline-variant pb-2">
+            <h4 className="font-label-lg text-secondary">Core Research Areas</h4>
+            <button type="button" onClick={handleAddResearch} className="bg-secondary text-on-secondary px-sm py-1 rounded-lg text-xs flex items-center gap-1 hover:opacity-90">
+              <span className="material-symbols-outlined text-[14px]">add</span> Add Research Area
+            </button>
+          </div>
+          {(content.research || []).map((res, idx) => (
+            <div key={idx} className="bg-surface p-md rounded-xl border border-outline grid grid-cols-1 md:grid-cols-2 gap-md relative group">
+              <button type="button" onClick={() => handleRemoveResearch(idx)} className="absolute top-md right-md text-error hover:bg-error-container p-1 rounded transition-colors" title="Remove Research">
+                <span className="material-symbols-outlined">delete</span>
+              </button>
+              <div className="col-span-full pr-8">
+                <label className="block font-label-md mb-2">Area Title</label>
+                <input name={`res_title_${idx}`} defaultValue={res.title} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Google Material Icon Name</label>
+                <input name={`res_icon_${idx}`} defaultValue={res.icon} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none font-code-sm" required />
+              </div>
+              <div className="col-span-full">
+                <label className="block font-label-md mb-2">Description</label>
+                <textarea name={`res_desc_${idx}`} defaultValue={res.desc} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" rows="2" required></textarea>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <div className="flex justify-end mt-sm sticky bottom-4 z-10">
+          <button type="submit" disabled={isSaving} className="bg-primary text-on-primary px-xl py-md rounded-xl font-headline-sm shadow-level-2 hover:shadow-level-3 transition-all">
+            {isSaving ? 'Saving...' : 'Save All Changes'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export function AlumniManager({ pages, onSaved }) {
+  const [content, setContent] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const alumniPage = pages.find(p => p.slug === 'alumni');
+    if (alumniPage && alumniPage.content) {
+      setContent(alumniPage.content);
+    }
+  }, [pages]);
+
+  const uploadImage = async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/';
+    const uploadUrl = apiUrl.endsWith('/') ? `${apiUrl}upload` : `${apiUrl}/upload`;
+    const res = await fetch(uploadUrl, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error('Failed to upload image');
+    const data = await res.json();
+    return data.url;
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const formData = new FormData(e.target);
+      const newContent = { ...content };
+
+      newContent.hero = {
+        title: formData.get('hero_title'),
+        description: formData.get('hero_desc'),
+      };
+
+      const updatedAlumni = await Promise.all((content.alumni_list || []).map(async (alum, idx) => {
+        let alumImage = alum.image || '';
+        const alumFile = formData.get(`alum_img_${idx}`);
+        if (alumFile && alumFile.size > 0) alumImage = await uploadImage(alumFile);
+
+        return {
+          name: formData.get(`alum_name_${idx}`),
+          grad_year: formData.get(`alum_year_${idx}`),
+          gpa: formData.get(`alum_gpa_${idx}`),
+          profession: formData.get(`alum_profession_${idx}`),
+          employment_type: formData.get(`alum_type_${idx}`),
+          company: formData.get(`alum_company_${idx}`),
+          linkedin: formData.get(`alum_linkedin_${idx}`),
+          image: alumImage
+        };
+      }));
+      newContent.alumni_list = updatedAlumni;
+
+      const { error } = await supabase.from('pages').update({ content: newContent }).eq('slug', 'alumni');
+      if (error) throw error;
+      alert('Alumni page updated successfully!');
+      onSaved();
+    } catch (err) {
+      alert(err.message);
+    }
+    setIsSaving(false);
+  };
+
+  const handleAddAlumni = () => setContent(prev => ({ ...prev, alumni_list: [...(prev.alumni_list || []), { name: '', grad_year: '', gpa: '', profession: '', employment_type: 'private', company: '', linkedin: '', image: '' }] }));
+  const handleRemoveAlumni = (idx) => setContent(prev => ({ ...prev, alumni_list: prev.alumni_list.filter((_, i) => i !== idx) }));
+  
+  if (!content) return <div>Loading...</div>;
+
+  return (
+    <div className="animate-in fade-in duration-300">
+      <header className="flex justify-between items-end border-b border-outline-variant pb-sm mb-lg">
+        <div>
+          <h2 className="font-headline-lg text-headline-lg text-primary">Alumni Page Management</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-xs">Manage the content of the Alumni page.</p>
+        </div>
+      </header>
+
+      <form onSubmit={handleSave} className="flex flex-col gap-xl pb-xl">
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant grid grid-cols-1 md:grid-cols-2 gap-md">
+          <h4 className="col-span-full font-label-lg text-secondary border-b border-outline-variant pb-2">Hero Section</h4>
+          <div className="col-span-full">
+            <label className="block font-label-md mb-2">Title</label>
+            <input name="hero_title" defaultValue={content.hero?.title} className="w-full bg-surface border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+          </div>
+          <div className="col-span-full">
+            <label className="block font-label-md mb-2">Description</label>
+            <textarea name="hero_desc" defaultValue={content.hero?.description} className="w-full bg-surface border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" rows="3" required></textarea>
+          </div>
+        </section>
+
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant flex flex-col gap-md">
+          <div className="flex justify-between items-center border-b border-outline-variant pb-2">
+            <h4 className="font-label-lg text-secondary">Alumni Directory</h4>
+            <button type="button" onClick={handleAddAlumni} className="bg-secondary text-on-secondary px-sm py-1 rounded-lg text-xs flex items-center gap-1 hover:opacity-90">
+              <span className="material-symbols-outlined text-[14px]">add</span> Add Alumni
+            </button>
+          </div>
+          {(content.alumni_list || []).map((alum, idx) => (
+            <div key={idx} className="bg-surface p-md rounded-xl border border-outline grid grid-cols-1 md:grid-cols-2 gap-md relative group">
+              <button type="button" onClick={() => handleRemoveAlumni(idx)} className="absolute top-md right-md text-error hover:bg-error-container p-1 rounded transition-colors" title="Remove Alumni">
+                <span className="material-symbols-outlined">delete</span>
+              </button>
+              <div className="col-span-full pr-8">
+                <label className="block font-label-md mb-2">Name</label>
+                <input name={`alum_name_${idx}`} defaultValue={alum.name} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Graduation Year</label>
+                <input name={`alum_year_${idx}`} defaultValue={alum.grad_year} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">GPA</label>
+                <input name={`alum_gpa_${idx}`} defaultValue={alum.gpa} type="number" step="0.01" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Profession</label>
+                <input name={`alum_profession_${idx}`} defaultValue={alum.profession} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Employment Type</label>
+                <select name={`alum_type_${idx}`} defaultValue={alum.employment_type || 'private'} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none">
+                  <option value="private">Private</option>
+                  <option value="government">Government</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Company / Organization</label>
+                <input name={`alum_company_${idx}`} defaultValue={alum.company} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">LinkedIn URL</label>
+                <input name={`alum_linkedin_${idx}`} defaultValue={alum.linkedin} type="url" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" />
+              </div>
+              <div>
+                <label className="block font-label-md mb-2">Profile Image</label>
+                <input name={`alum_img_${idx}`} type="file" accept="image/*" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2" />
+                {alum.image && (
+                  <div className="mt-2 relative inline-block">
+                    <img src={alum.image} alt="Preview" className="h-12 w-12 rounded-full object-cover border border-outline" />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <div className="flex justify-end mt-sm sticky bottom-4 z-10">
+          <button type="submit" disabled={isSaving} className="bg-primary text-on-primary px-xl py-md rounded-xl font-headline-sm shadow-level-2 hover:shadow-level-3 transition-all">
+            {isSaving ? 'Saving...' : 'Save All Changes'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export function BatchesManager({ pages, onSaved }) {
+  const [content, setContent] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const batchesPage = pages.find(p => p.slug === 'batches');
+    if (batchesPage && batchesPage.content) {
+      setContent(batchesPage.content);
+    }
+  }, [pages]);
+
+  const uploadImage = async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/';
+    const uploadUrl = apiUrl.endsWith('/') ? `${apiUrl}upload` : `${apiUrl}/upload`;
+    const res = await fetch(uploadUrl, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error('Failed to upload image');
+    const data = await res.json();
+    return data.url;
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const formData = new FormData(e.target);
+      const newContent = { ...content };
+
+      newContent.hero = {
+        title: formData.get('hero_title'),
+        description: formData.get('hero_desc'),
+      };
+
+      const updatedBatches = await Promise.all((content.batches || []).map(async (batch, idx) => {
+        let batchImage = batch.image || '';
+        const batchFile = formData.get(`batch_img_${idx}`);
+        if (batchFile && batchFile.size > 0) batchImage = await uploadImage(batchFile);
+
+        return {
+          year: formData.get(`batch_year_${idx}`),
+          name: formData.get(`batch_name_${idx}`),
+          student_count: parseInt(formData.get(`batch_count_${idx}`), 10) || 0,
+          description: formData.get(`batch_desc_${idx}`),
+          image: batchImage
+        };
+      }));
+      
+      // Sort batches by year descending
+      updatedBatches.sort((a, b) => b.year.localeCompare(a.year));
+      newContent.batches = updatedBatches;
+
+      const { error } = await supabase.from('pages').update({ content: newContent }).eq('slug', 'batches');
+      if (error) throw error;
+      alert('Batches page updated successfully!');
+      onSaved();
+    } catch (err) {
+      alert(err.message);
+    }
+    setIsSaving(false);
+  };
+
+  const handleAddBatch = () => setContent(prev => ({ ...prev, batches: [{ year: '', name: '', student_count: 0, description: '', image: '' }, ...(prev.batches || [])] }));
+  const handleRemoveBatch = (idx) => setContent(prev => ({ ...prev, batches: prev.batches.filter((_, i) => i !== idx) }));
+  
+  if (!content) return <div>Loading...</div>;
+
+  return (
+    <div className="animate-in fade-in duration-300">
+      <header className="flex justify-between items-end border-b border-outline-variant pb-sm mb-lg">
+        <div>
+          <h2 className="font-headline-lg text-headline-lg text-primary">Batches Page Management</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-xs">Manage the content of the Our Batches page.</p>
+        </div>
+      </header>
+
+      <form onSubmit={handleSave} className="flex flex-col gap-xl pb-xl">
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant grid grid-cols-1 md:grid-cols-2 gap-md">
+          <h4 className="col-span-full font-label-lg text-secondary border-b border-outline-variant pb-2">Hero Section</h4>
+          <div className="col-span-full">
+            <label className="block font-label-md mb-2">Title</label>
+            <input name="hero_title" defaultValue={content.hero?.title} className="w-full bg-surface border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+          </div>
+          <div className="col-span-full">
+            <label className="block font-label-md mb-2">Description</label>
+            <textarea name="hero_desc" defaultValue={content.hero?.description} className="w-full bg-surface border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" rows="3" required></textarea>
+          </div>
+        </section>
+
+        <section className="bg-surface-container-lowest p-md rounded-xl border border-outline-variant flex flex-col gap-md">
+          <div className="flex justify-between items-center border-b border-outline-variant pb-2">
+            <h4 className="font-label-lg text-secondary">Batches Directory</h4>
+            <button type="button" onClick={handleAddBatch} className="bg-secondary text-on-secondary px-sm py-1 rounded-lg text-xs flex items-center gap-1 hover:opacity-90">
+              <span className="material-symbols-outlined text-[14px]">add</span> Add Batch
+            </button>
+          </div>
+          {(content.batches || []).map((batch, idx) => (
+            <div key={idx} className="bg-surface p-md rounded-xl border border-outline grid grid-cols-1 md:grid-cols-2 gap-md relative group">
+              <button type="button" onClick={() => handleRemoveBatch(idx)} className="absolute top-md right-md text-error hover:bg-error-container p-1 rounded transition-colors" title="Remove Batch">
+                <span className="material-symbols-outlined">delete</span>
+              </button>
+              
+              <div>
+                <label className="block font-label-md mb-2">Year</label>
+                <input name={`batch_year_${idx}`} defaultValue={batch.year} placeholder="e.g. 2023 or 2019-2023" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              
+              <div>
+                <label className="block font-label-md mb-2">Name / Title</label>
+                <input name={`batch_name_${idx}`} defaultValue={batch.name} placeholder="e.g. Class of 2023" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              
+              <div>
+                <label className="block font-label-md mb-2">Student Count</label>
+                <input name={`batch_count_${idx}`} defaultValue={batch.student_count} type="number" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required />
+              </div>
+              
+              <div>
+                <label className="block font-label-md mb-2">Group Image</label>
+                <input name={`batch_img_${idx}`} type="file" accept="image/*" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2" />
+                {batch.image && (
+                  <div className="mt-2 relative inline-block">
+                    <img src={batch.image} alt="Preview" className="h-16 w-auto rounded object-cover border border-outline" />
+                  </div>
+                )}
+              </div>
+              
+              <div className="col-span-full">
+                <label className="block font-label-md mb-2">Description</label>
+                <textarea name={`batch_desc_${idx}`} defaultValue={batch.description} rows="2" className="w-full bg-surface-container-lowest border border-outline-variant rounded p-2 focus:ring-1 focus:ring-secondary focus:outline-none" required></textarea>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <div className="flex justify-end mt-sm sticky bottom-4 z-10">
+          <button type="submit" disabled={isSaving} className="bg-primary text-on-primary px-xl py-md rounded-xl font-headline-sm shadow-level-2 hover:shadow-level-3 transition-all">
+            {isSaving ? 'Saving...' : 'Save All Changes'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

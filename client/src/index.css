@@ -19,3 +19,56 @@
     -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fade-in-up {
+    animation: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @supports ((animation-timeline: view()) and (animation-range: entry)) {
+    @keyframes reveal-up {
+      from {
+        opacity: 0;
+        transform: translateY(40px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes reveal-scale {
+      from {
+        opacity: 0;
+        scale: 0.8;
+      }
+      to {
+        opacity: 1;
+        scale: 1;
+      }
+    }
+
+    .scroll-reveal-up {
+      animation: reveal-up auto linear forwards;
+      animation-timeline: view();
+      animation-range: entry 10% cover 30%;
+    }
+
+    .scroll-reveal-scale {
+      animation: reveal-scale auto linear forwards;
+      animation-timeline: view();
+      animation-range: entry 10% cover 30%;
+    }
+  }
+}
