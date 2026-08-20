@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-import { HighlightsManager, ContactManager } from '../components/CMSManagers';
+import { HeroManager, HighlightsManager, ContactManager, EventsManager } from '../components/CMSManagers';
+import { toast } from 'react-hot-toast';
 
 function Admin() {
   const [subjects, setSubjects] = useState([]);
@@ -60,26 +61,20 @@ function Admin() {
     let syllabus_url = editingSubject?.syllabus_url || null;
 
     if (file && file.size > 0) {
-      const uploadData = new FormData();
-      uploadData.append('file', file);
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File is too large! Please keep the syllabus under 5MB.");
+        setIsUploading(false);
+        return;
+      }
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/';
-        const uploadUrl = apiUrl.endsWith('/') ? `${apiUrl}upload-document` : `${apiUrl}/upload-document`;
-        
-        const uploadRes = await fetch(uploadUrl, {
-          method: 'POST',
-          body: uploadData,
+        syllabus_url = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = error => reject(error);
+          reader.readAsDataURL(file);
         });
-        const uploadResult = await uploadRes.json();
-        if (uploadRes.ok) {
-          syllabus_url = uploadResult.url;
-        } else {
-          alert("Error uploading syllabus: " + uploadResult.error);
-          setIsUploading(false);
-          return;
-        }
       } catch (err) {
-        alert("Upload failed: " + err.message);
+        toast.error("Upload failed to read file: " + err.message);
         setIsUploading(false);
         return;
       }
@@ -87,7 +82,7 @@ function Admin() {
 
     if (editingSubject) {
       const { error } = await supabase.from('subjects').update({ code, name, credits, instructor, semester, subject_type, syllabus_url }).eq('id', editingSubject.id);
-      if (error) alert("Error updating subject: " + error.message);
+      if (error) toast.error("Error updating subject: " + error.message);
       else {
         setIsModalOpen(false);
         setEditingSubject(null);
@@ -97,7 +92,7 @@ function Admin() {
       const { error } = await supabase.from('subjects').insert([
         { code, name, credits, instructor, semester, subject_type, syllabus_url, status: 'Active' }
       ]);
-      if (error) alert("Error creating subject: " + error.message);
+      if (error) toast.error("Error creating subject: " + error.message);
       else {
         setIsModalOpen(false);
         fetchData();
@@ -109,14 +104,14 @@ function Admin() {
   const handleDeleteSubject = async (id) => {
     if (window.confirm("Are you sure you want to delete this subject?")) {
       const { error } = await supabase.from('subjects').delete().eq('id', id);
-      if (error) alert("Error deleting subject: " + error.message);
+      if (error) toast.error("Error deleting subject: " + error.message);
       else fetchData();
     }
   };
 
   const updateApplicationStatus = async (id, status) => {
     const { error } = await supabase.from('applications').update({ status }).eq('id', id);
-    if (error) alert("Error updating status: " + error.message);
+    if (error) toast.error("Error updating status: " + error.message);
     else fetchData();
   };
 
@@ -168,9 +163,17 @@ function Admin() {
             <span className="material-symbols-outlined" data-icon="group">group</span>
             <span className="font-label-md text-label-md">User Management</span>
           </button>
+          <button onClick={() => setActiveTab('hero')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'hero' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
+            <span className="material-symbols-outlined" data-icon="image">image</span>
+            <span className="font-label-md text-label-md">Hero Section</span>
+          </button>
           <button onClick={() => setActiveTab('highlights')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'highlights' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
             <span className="material-symbols-outlined" data-icon="star">star</span>
             <span className="font-label-md text-label-md">Highlights</span>
+          </button>
+          <button onClick={() => setActiveTab('events')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'events' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
+            <span className="material-symbols-outlined" data-icon="event">event</span>
+            <span className="font-label-md text-label-md">Events</span>
           </button>
           <button onClick={() => setActiveTab('contact')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'contact' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
             <span className="material-symbols-outlined" data-icon="contact_page">contact_page</span>
@@ -324,7 +327,9 @@ function Admin() {
           </div>
         )}
 
+        {activeTab === 'hero' && <HeroManager pages={pages} onSaved={fetchData} />}
         {activeTab === 'highlights' && <HighlightsManager pages={pages} onSaved={fetchData} />}
+        {activeTab === 'events' && <EventsManager pages={pages} onSaved={fetchData} />}
         {activeTab === 'contact' && <ContactManager pages={pages} onSaved={fetchData} />}
 
         {activeTab === 'applications' && (

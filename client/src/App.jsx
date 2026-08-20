@@ -9,9 +9,12 @@ import Admin from './pages/Admin';
 import Login from './pages/Login';
 import Apply from './pages/Apply';
 
+import { Toaster } from 'react-hot-toast';
+
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="bottom-right" />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
