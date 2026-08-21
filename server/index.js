@@ -1,4 +1,6 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { createClient } = require('@supabase/supabase-js');
@@ -9,6 +11,11 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*' }
+});
 
 // Middleware
 app.use(cors());
@@ -104,6 +111,12 @@ app.post('/api/execute', (req, res) => {
   let javaDir = null;
 
   try {
+    let inputFileName = null;
+    if (req.body.input !== undefined) {
+      inputFileName = path.join(tmpDir, `${fileId}_in.txt`);
+      fs.writeFileSync(inputFileName, req.body.input);
+    }
+
     if (language === 'python') {
       fileName = path.join(tmpDir, `${fileId}.py`);
       command = `python3 ${fileName}`;
@@ -136,11 +149,15 @@ app.post('/api/execute', (req, res) => {
       return res.status(400).json({ error: 'Unsupported language. Supported: python, javascript, java, c, cpp, bash, perl.' });
     }
 
+    if (inputFileName) {
+      command += ` < ${inputFileName}`;
+    }
+
     fs.writeFile(fileName, source, (err) => {
       if (err) return res.status(500).json({ error: 'Failed to create temp file' });
       
-      // Execute with a timeout of 5 seconds to prevent infinite loops
-      exec(command, { timeout: 5000 }, (execErr, stdout, stderr) => {
+      // Execute with a timeout of 60 seconds to prevent infinite loops
+      exec(command, { timeout: 60000 }, (execErr, stdout, stderr) => {
         // Clean up temp files
         try {
           if (javaDir) {
@@ -151,13 +168,16 @@ app.post('/api/execute', (req, res) => {
               fs.unlink(path.join(tmpDir, `${fileId}`), () => {});
             }
           }
+          if (inputFileName) {
+            fs.unlink(inputFileName, () => {});
+          }
         } catch (cleanupErr) {
           console.error("Cleanup error:", cleanupErr);
         }
         
         let runOutput = '';
         if (execErr && execErr.killed) {
-          runOutput = 'Error: Execution timed out (exceeded 5 seconds).';
+          runOutput = 'Error: Execution timed out (exceeded 60 seconds).';
         } else if (execErr) {
           // Failure (e.g. compile error)
           runOutput = stderr || stdout || execErr.message;
@@ -182,10 +202,150 @@ app.post('/api/execute', (req, res) => {
   }
 });
 
+const { spawn } = require('child_process');
+
+io.on('connection', (socket) => {
+  let child = null;
+  let javaDir = null;
+  let fileName = null;
+
+  socket.on('execute', (data) => {
+    const { language, source } = data;
+    const tmpDir = os.tmpdir();
+    const fileId = uuidv4();
+    let compileCommand, runCommand, runArgs;
+
+    try {
+      if (language === 'python') {
+        fileName = path.join(tmpDir, `${fileId}.py`);
+        fs.writeFileSync(fileName, source);
+        runCommand = 'python3';
+        runArgs = ['-u', fileName]; // -u for unbuffered
+      } else if (language === 'javascript') {
+        fileName = path.join(tmpDir, `${fileId}.js`);
+        fs.writeFileSync(fileName, source);
+        runCommand = 'node';
+        runArgs = [fileName];
+      } else if (language === 'java') {
+        javaDir = path.join(tmpDir, fileId);
+        fs.mkdirSync(javaDir);
+        fileName = path.join(javaDir, `Main.java`);
+        fs.writeFileSync(fileName, source);
+        compileCommand = `javac ${fileName}`;
+        runCommand = 'java';
+        runArgs = ['-cp', javaDir, 'Main'];
+      } else if (language === 'c') {
+        fileName = path.join(tmpDir, `${fileId}.c`);
+        fs.writeFileSync(fileName, source);
+        const outName = path.join(tmpDir, `${fileId}`);
+        const zigPath = fs.existsSync('/usr/local/bin/zig') ? '/usr/local/bin/zig' : '/home/zerosync/.local/bin/zig';
+        compileCommand = `${zigPath} cc ${fileName} -o ${outName}`;
+        runCommand = 'stdbuf';
+        runArgs = ['-i0', '-o0', '-e0', outName];
+      } else if (language === 'cpp' || language === 'c++') {
+        fileName = path.join(tmpDir, `${fileId}.cpp`);
+        fs.writeFileSync(fileName, source);
+        const outName = path.join(tmpDir, `${fileId}`);
+        const zigPath = fs.existsSync('/usr/local/bin/zig') ? '/usr/local/bin/zig' : '/home/zerosync/.local/bin/zig';
+        compileCommand = `${zigPath} c++ ${fileName} -o ${outName}`;
+        runCommand = 'stdbuf';
+        runArgs = ['-i0', '-o0', '-e0', outName];
+      } else if (language === 'bash') {
+        fileName = path.join(tmpDir, `${fileId}.sh`);
+        fs.writeFileSync(fileName, source);
+        runCommand = 'bash';
+        runArgs = [fileName];
+      } else if (language === 'perl') {
+        fileName = path.join(tmpDir, `${fileId}.pl`);
+        fs.writeFileSync(fileName, source);
+        runCommand = 'perl';
+        runArgs = [fileName];
+      } else {
+        socket.emit('output', 'Error: Unsupported language.\r\n');
+        socket.emit('finished', 1);
+        return;
+      }
+
+      const cleanup = () => {
+        try {
+          if (javaDir) fs.rmSync(javaDir, { recursive: true, force: true });
+          if (fileName && fs.existsSync(fileName)) fs.unlinkSync(fileName);
+          if (runCommand === 'stdbuf' && runArgs[3]) {
+            if (fs.existsSync(runArgs[3])) fs.unlinkSync(runArgs[3]);
+          }
+        } catch (e) {
+          console.error("Cleanup error:", e);
+        }
+      };
+
+      const executeRun = () => {
+        child = spawn(runCommand, runArgs);
+
+        child.stdout.on('data', (data) => {
+          // Send output as string; replace \n with \r\n for xterm.js compatibility if needed, but xterm usually handles it or we can do it on client.
+          socket.emit('output', data.toString());
+        });
+
+        child.stderr.on('data', (data) => {
+          socket.emit('output', data.toString());
+        });
+
+        child.on('close', (code) => {
+          socket.emit('finished', code);
+          cleanup();
+          child = null;
+        });
+
+        child.on('error', (err) => {
+          socket.emit('output', `\r\nExecution Error: ${err.message}\r\n`);
+          socket.emit('finished', 1);
+          cleanup();
+          child = null;
+        });
+      };
+
+      if (compileCommand) {
+        socket.emit('output', 'Compiling...\r\n');
+        exec(compileCommand, { timeout: 15000 }, (err, stdout, stderr) => {
+          if (err) {
+            let errorMsg = stderr || stdout || err.message;
+            socket.emit('output', `Compilation Error:\r\n${errorMsg}\r\n`);
+            socket.emit('finished', 1);
+            cleanup();
+            return;
+          }
+          executeRun();
+        });
+      } else {
+        executeRun();
+      }
+    } catch (err) {
+      socket.emit('output', `\r\nServer Error: ${err.message}\r\n`);
+      socket.emit('finished', 1);
+    }
+  });
+
+  socket.on('input', (inputData) => {
+    if (child && child.stdin && child.stdin.writable) {
+      child.stdin.write(inputData);
+    }
+  });
+
+  socket.on('kill', () => {
+    if (child) {
+      child.kill('SIGKILL');
+    }
+  });
+
+  socket.on('disconnect', () => {
+    if (child) child.kill('SIGKILL');
+  });
+});
+
 if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
-  app.listen(port, () => {
+  server.listen(port, () => {
     console.log(`Server is running on port ${port}`);
   });
 }
 
-module.exports = app;
+module.exports = server;

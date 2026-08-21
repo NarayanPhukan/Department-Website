@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import toast from 'react-hot-toast';
 
-export default function RecentBuilds({ enrollmentId }) {
+export default function RecentBuilds({ enrollmentId, onResume }) {
   const [builds, setBuilds] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +64,13 @@ export default function RecentBuilds({ enrollmentId }) {
                   {new Date(build.created_at).toLocaleString()}
                 </span>
               </div>
+              <button 
+                onClick={() => onResume && onResume(build.language, build.code_content)}
+                className="flex items-center gap-1 text-primary hover:text-primary/80 font-label-md transition-colors bg-primary/10 px-2 py-1 rounded-md"
+              >
+                <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                Resume Code
+              </button>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-outline-variant">

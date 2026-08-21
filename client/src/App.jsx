@@ -12,6 +12,7 @@ import Alumni from './pages/Alumni';
 import Batches from './pages/Batches';
 import CodingZone from './pages/CodingZone';
 import StudentPanel from './pages/StudentPanel';
+import ResetPassword from './pages/ResetPassword';
 
 import { Toaster } from 'react-hot-toast';
 
@@ -31,6 +32,7 @@ function App() {
         <Route path="/batches" element={<Batches />} />
         <Route path="/coding-zone" element={<CodingZone />} />
         <Route path="/student-panel" element={<StudentPanel />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </BrowserRouter>
   );

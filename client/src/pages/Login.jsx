@@ -8,6 +8,60 @@ function Login() {
   const [activeTab, setActiveTab] = useState('student'); // 'student' or 'admin'
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  
+  // Forgot password modal state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEnrollmentId, setForgotEnrollmentId] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState({ type: '', text: '' });
+
+  const handleForgotPassword = () => {
+    if (activeTab === 'admin') {
+      setShowForgotModal(true);
+      setForgotMessage({ type: 'error', text: 'Please contact the super admin to reset your admin password.' });
+      return;
+    }
+    setShowForgotModal(true);
+    setForgotMessage({ type: '', text: '' });
+    setForgotEnrollmentId('');
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEnrollmentId) return;
+    
+    setForgotLoading(true);
+    setForgotMessage({ type: '', text: '' });
+
+    try {
+      const { data: studentData, error: lookupError } = await supabase
+        .from('applications')
+        .select('email')
+        .eq('enrollment_id', forgotEnrollmentId)
+        .maybeSingle();
+      
+      if (!studentData || lookupError) {
+        setForgotMessage({ type: 'error', text: 'Enrollment ID not found.' });
+        setForgotLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(studentData.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        setForgotMessage({ type: 'error', text: "Error sending email: " + error.message });
+      } else {
+        setForgotMessage({ type: 'success', text: "Password reset email sent! Please check your inbox." });
+      }
+    } catch (err) {
+      setForgotMessage({ type: 'error', text: "An unexpected error occurred." });
+    }
+    
+    setForgotLoading(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -142,10 +196,17 @@ function Login() {
               <label className="font-label-md text-label-md text-on-surface-variant mb-base block" htmlFor="password">password</label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline-variant text-[20px]">lock</span>
-                <input className="w-full pl-xl pr-sm py-sm bg-surface border border-outline-variant rounded-lg focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary font-body-md text-body-md text-on-surface transition-all placeholder:text-outline-variant/60" id="password" name="password" placeholder="••••••••••••" required="" type="password" />
+                <input className="w-full pl-xl pr-10 py-sm bg-surface border border-outline-variant rounded-lg focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary font-body-md text-body-md text-on-surface transition-all placeholder:text-outline-variant/60" id="password" name="password" placeholder="••••••••••••" required="" type={showPassword ? "text" : "password"} />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-sm top-1/2 -translate-y-1/2 text-outline-variant hover:text-on-surface transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[20px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                </button>
               </div>
               <div className="flex justify-end mt-xs">
-                <Link className="font-body-sm text-body-sm text-secondary hover:underline transition-all" to="#">Forgot password?</Link>
+                <button type="button" onClick={handleForgotPassword} className="font-body-sm text-body-sm text-secondary hover:underline transition-all bg-transparent border-none p-0 cursor-pointer">Forgot password?</button>
               </div>
             </div>
             
@@ -171,6 +232,66 @@ function Login() {
         </div>
       </main>
       </div>
+      
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-container-lowest border border-surface-container-high rounded-xl p-lg w-full max-w-md shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setShowForgotModal(false)}
+              className="absolute top-sm right-sm text-on-surface-variant hover:text-on-surface transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+            
+            <div className="flex flex-col items-center mb-md">
+              <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-sm border border-surface-container-high">
+                <span className="material-symbols-outlined text-secondary">key</span>
+              </div>
+              <h2 className="font-headline-sm text-headline-sm text-on-surface text-center font-bold">Reset Password</h2>
+              <p className="font-body-sm text-body-sm text-on-surface-variant text-center mt-xs">
+                {activeTab === 'admin' ? 'Admin passwords cannot be reset here.' : 'Enter your enrollment ID to receive a password reset link.'}
+              </p>
+            </div>
+            
+            <form onSubmit={handleForgotPasswordSubmit} className="flex flex-col gap-sm">
+              <div>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-outline-variant text-[20px]">badge</span>
+                  <input 
+                    className="w-full pl-xl pr-sm py-sm bg-surface border border-outline-variant rounded-lg focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary font-body-md text-body-md text-on-surface transition-all placeholder:text-outline-variant/60 disabled:opacity-50" 
+                    id="forgotEnrollment" 
+                    placeholder="e.g. CS-2024-001" 
+                    required={activeTab !== 'admin'} 
+                    disabled={activeTab === 'admin' || forgotLoading}
+                    type="text"
+                    value={forgotEnrollmentId}
+                    onChange={(e) => setForgotEnrollmentId(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              {forgotMessage.text && (
+                <div className={`p-sm rounded-lg font-body-sm text-body-sm flex items-start gap-2 ${forgotMessage.type === 'error' ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'}`}>
+                  <span className="material-symbols-outlined text-[18px]">
+                    {forgotMessage.type === 'error' ? 'error' : 'check_circle'}
+                  </span>
+                  <span>{forgotMessage.text}</span>
+                </div>
+              )}
+              
+              <button 
+                className="w-full mt-xs py-sm rounded-lg bg-secondary text-on-secondary font-label-md text-label-md hover:bg-secondary-container hover:text-on-secondary-container transition-colors duration-200 flex items-center justify-center gap-xs disabled:opacity-70 disabled:cursor-not-allowed" 
+                type="submit" 
+                disabled={activeTab === 'admin' || forgotLoading}
+              >
+                {forgotLoading ? 'Sending...' : 'Send Reset Link'}
+                {!forgotLoading && <span className="material-symbols-outlined text-[18px]">send</span>}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

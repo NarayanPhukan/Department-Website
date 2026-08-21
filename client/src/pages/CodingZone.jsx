@@ -3,16 +3,33 @@ import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 import TopNavBar from '../components/TopNavBar';
 import Editor from '@monaco-editor/react';
+import { io } from 'socket.io-client';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
 
-function CodingZone({ isEmbedded = false, enrollmentId = null }) {
+function CodingZone({ isEmbedded = false, enrollmentId = null, resumeData = null }) {
   const [session, setSession] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true);
   
   const [runtimes, setRuntimes] = useState([]);
   const [selectedRuntime, setSelectedRuntime] = useState(null);
   const [code, setCode] = useState('// Write your code here...');
-  const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const terminalRef = useRef(null);
+  const termInstance = useRef(null);
+  const fitAddonInstance = useRef(null);
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    if (resumeData && runtimes.length > 0) {
+      setCode(resumeData.code);
+      const matchingRuntime = runtimes.find(r => r.language.toLowerCase() === resumeData.lang.toLowerCase() || r.language === resumeData.lang);
+      if (matchingRuntime) {
+        setSelectedRuntime(matchingRuntime);
+      }
+    }
+  }, [resumeData, runtimes]);
 
   useEffect(() => {
     // Check authentication
@@ -26,6 +43,47 @@ function CodingZone({ isEmbedded = false, enrollmentId = null }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
+
+    // Initialize xterm.js if container exists and not already initialized
+    const initTerminal = () => {
+      if (terminalRef.current && !termInstance.current) {
+        termInstance.current = new Terminal({
+          theme: { background: '#1e1e1e', foreground: '#cccccc', cursor: '#ffffff' },
+          fontFamily: 'monospace',
+          fontSize: 14,
+          convertEol: true
+        });
+        fitAddonInstance.current = new FitAddon();
+        termInstance.current.loadAddon(fitAddonInstance.current);
+        termInstance.current.open(terminalRef.current);
+        fitAddonInstance.current.fit();
+        
+        termInstance.current.onData(data => {
+          if (socketRef.current) {
+            socketRef.current.emit('input', data);
+          }
+          // Basic local echo
+          if (data === '\r') {
+            termInstance.current.write('\r\n');
+          } else if (data === '\x7f') {
+            termInstance.current.write('\b \b'); // Handle backspace visually
+          } else {
+            termInstance.current.write(data);
+          }
+        });
+        
+        termInstance.current.writeln('\x1b[3mClick "Run Code" to start interactive session...\x1b[0m');
+      }
+    };
+    
+    // Slight delay to ensure DOM is ready
+    setTimeout(initTerminal, 100);
+
+    // Resize handling
+    const handleResize = () => {
+      if (fitAddonInstance.current) fitAddonInstance.current.fit();
+    };
+    window.addEventListener('resize', handleResize);
 
     // Set supported local languages instead of fetching from Piston
     const localRuntimes = [
@@ -41,7 +99,15 @@ function CodingZone({ isEmbedded = false, enrollmentId = null }) {
     setSelectedRuntime(localRuntimes[0]);
     setCode('print("Hello from the Coding Zone!")');
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('resize', handleResize);
+      if (socketRef.current) socketRef.current.disconnect();
+      if (termInstance.current) {
+        termInstance.current.dispose();
+        termInstance.current = null;
+      }
+    };
   }, []);
 
   const handleLanguageChange = (e) => {
@@ -58,53 +124,77 @@ function CodingZone({ isEmbedded = false, enrollmentId = null }) {
     else setCode('// Write your code here...');
   };
 
-  const handleRunCode = async () => {
+  const handleRunCode = () => {
     if (!selectedRuntime) return;
+    
+    if (isRunning && socketRef.current) {
+      // If already running, kill it
+      socketRef.current.emit('kill');
+      setIsRunning(false);
+      return;
+    }
+
     setIsRunning(true);
-    setOutput('Running...\n');
+    if (termInstance.current) {
+      termInstance.current.clear();
+      termInstance.current.focus();
+    }
 
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/';
-      const response = await fetch(`${apiUrl}execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          language: selectedRuntime.language,
-          source: code
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.error) {
-        setOutput(`Error: ${data.error}`);
-      } else if (data.run) {
-        const outText = data.run.output || '\n(No output)';
-        setOutput(outText);
-
-        if (enrollmentId) {
-          try {
-            await supabase.from('recent_builds').insert([
-              {
-                enrollment_id: enrollmentId,
-                language: selectedRuntime.language,
-                code_content: code,
-                output: outText
-              }
-            ]);
-          } catch (err) {
-            console.error("Could not save recent build:", err);
-          }
-        }
-
-      } else {
-        setOutput('Unknown error occurred.');
-      }
-    } catch (err) {
-      setOutput(`Failed to execute code: ${err.message}`);
+    // Connect WebSocket
+    const socketUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api/', '') : 'http://localhost:5000';
+    if (socketRef.current) {
+      socketRef.current.disconnect();
     }
     
-    setIsRunning(false);
+    const socket = io(socketUrl);
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('execute', {
+        language: selectedRuntime.language,
+        source: code
+      });
+    });
+
+    let fullOutput = '';
+    
+    socket.on('output', (data) => {
+      if (termInstance.current) {
+        termInstance.current.write(data);
+      }
+      fullOutput += data;
+    });
+
+    socket.on('finished', async (exitCode) => {
+      if (termInstance.current) {
+        termInstance.current.writeln(`\r\n\x1b[33mProcess exited with code ${exitCode}\x1b[0m`);
+      }
+      setIsRunning(false);
+      socket.disconnect();
+      
+      // Save recent build logic
+      if (enrollmentId) {
+        try {
+          await supabase.from('recent_builds').insert([
+            {
+              enrollment_id: enrollmentId,
+              language: selectedRuntime.language,
+              code_content: code,
+              output: fullOutput
+            }
+          ]);
+        } catch (err) {
+          console.error("Could not save recent build:", err);
+        }
+      }
+    });
+
+    socket.on('connect_error', (err) => {
+      if (termInstance.current) {
+        termInstance.current.writeln(`\r\n\x1b[31mConnection error: ${err.message}\x1b[0m`);
+      }
+      setIsRunning(false);
+    });
   };
 
   if (loadingSession) {
@@ -167,10 +257,10 @@ function CodingZone({ isEmbedded = false, enrollmentId = null }) {
       
       <main className={`flex-grow flex flex-col ${isEmbedded ? 'h-full' : 'h-[calc(100vh-64px)]'}`}>
         {/* Toolbar */}
-        <div className="bg-surface-container h-16 border-b border-outline-variant flex items-center px-lg justify-between shrink-0">
-          <div className="flex items-center gap-md">
+        <div className="bg-surface-container min-h-16 h-auto py-2 border-b border-outline-variant flex flex-wrap items-center px-lg justify-between shrink-0 gap-4">
+          <div className="flex items-center gap-2 md:gap-md flex-wrap">
             <span className="material-symbols-outlined text-primary text-[24px]">terminal</span>
-            <h1 className="font-headline-sm text-headline-sm text-on-surface font-bold">Coding Zone</h1>
+            <h1 className="font-headline-sm text-headline-sm text-on-surface font-bold hidden sm:block">Coding Zone</h1>
             
             <div className="h-6 w-[1px] bg-outline-variant mx-sm"></div>
             
@@ -233,25 +323,26 @@ function CodingZone({ isEmbedded = false, enrollmentId = null }) {
             </div>
           </div>
           
-          {/* Terminal/Output Pane */}
+          {/* Interactive Terminal Pane */}
           <div className="w-full md:w-1/3 h-1/2 md:h-full flex flex-col bg-[#1e1e1e]">
             <div className="bg-[#252526] text-[#cccccc] text-xs font-mono px-4 py-2 flex justify-between items-center border-b border-[#333] shrink-0">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[14px]">wysiwyg</span>
-                OUTPUT
+                <span className="material-symbols-outlined text-[14px]">terminal</span>
+                INTERACTIVE TERMINAL
               </div>
               <button 
-                onClick={() => setOutput('')} 
+                onClick={() => {
+                  if (termInstance.current) {
+                    termInstance.current.clear();
+                  }
+                }} 
                 className="hover:text-white transition-colors flex items-center" 
-                title="Clear Output"
+                title="Clear Terminal"
               >
                 <span className="material-symbols-outlined text-[14px]">block</span>
               </button>
             </div>
-            <div className="flex-grow p-4 overflow-auto font-mono text-sm text-[#cccccc] whitespace-pre-wrap focus:outline-none">
-              {output || (
-                <span className="text-[#666666] italic">Click "Run Code" to see the output here...</span>
-              )}
+            <div className="flex-grow p-4 overflow-hidden focus:outline-none relative" ref={terminalRef}>
             </div>
           </div>
           

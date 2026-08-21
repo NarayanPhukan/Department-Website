@@ -8,11 +8,16 @@ import CodingZone from './CodingZone';
 import StudentSyllabus from '../components/StudentSyllabus';
 import StudentProfile from '../components/StudentProfile';
 import RecentBuilds from '../components/RecentBuilds';
+import EnhancerList from '../components/EnhancerList';
+import EnhancerSolver from '../components/EnhancerSolver';
+import { problems } from '../data/problems';
 
 function StudentPanel() {
   const [activeTab, setActiveTab] = useState('coding-zone');
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [studentApps, setStudentApps] = useState([]);
+  const [resumeData, setResumeData] = useState(null);
+  const [selectedEnhancerProblem, setSelectedEnhancerProblem] = useState(null);
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
@@ -98,6 +103,15 @@ function StudentPanel() {
             )}
           </div>
 
+          {/* Enhancer */}
+          <button 
+            onClick={() => setActiveTab('enhancer')} 
+            className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all ${activeTab === 'enhancer' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+          >
+            <span className="material-symbols-outlined text-[20px]">model_training</span>
+            <span className="font-label-md">Enhancer</span>
+          </button>
+
           {/* Syllabus */}
           <button 
             onClick={() => setActiveTab('syllabus')} 
@@ -139,9 +153,27 @@ function StudentPanel() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="ml-64 flex-1 w-full min-h-screen bg-[#f8f9fa] dark:bg-[#121212]">
-        {activeTab === 'coding-zone' && <CodingZone isEmbedded={true} enrollmentId={latestApp.enrollment_id} />}
-        {activeTab === 'recent-builds' && <RecentBuilds enrollmentId={latestApp.enrollment_id} />}
+      <main className="ml-64 flex-1 min-h-screen bg-[#f8f9fa] dark:bg-[#121212] overflow-x-hidden">
+        {activeTab === 'coding-zone' && <CodingZone isEmbedded={true} enrollmentId={latestApp.enrollment_id} resumeData={resumeData} />}
+        {activeTab === 'recent-builds' && (
+          <RecentBuilds 
+            enrollmentId={latestApp.enrollment_id} 
+            onResume={(lang, code) => {
+              setResumeData({ lang, code });
+              setActiveTab('coding-zone');
+            }}
+          />
+        )}
+        {activeTab === 'enhancer' && (
+          selectedEnhancerProblem ? (
+            <EnhancerSolver 
+              problem={problems.find(p => p.id === selectedEnhancerProblem)} 
+              onBack={() => setSelectedEnhancerProblem(null)} 
+            />
+          ) : (
+            <EnhancerList onSelectProblem={setSelectedEnhancerProblem} />
+          )
+        )}
         {activeTab === 'syllabus' && <StudentSyllabus applications={studentApps} />}
         {activeTab === 'profile' && <StudentProfile applications={studentApps} setStudentApps={setStudentApps} />}
       </main>

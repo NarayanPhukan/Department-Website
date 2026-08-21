@@ -12,7 +12,6 @@ function TopNavBar() {
     { path: '/subjects', label: 'Subjects' },
     { path: '/alumni', label: 'Alumni' },
     { path: '/batches', label: 'Our Batches' },
-    { path: '/coding-zone', label: 'Coding Zone' },
     { path: '/contact', label: 'Contact' }
   ];
 
@@ -48,9 +47,7 @@ function TopNavBar() {
           <Link className="text-on-surface hover:text-secondary transition-colors" to="/login">
             <span className="material-symbols-outlined">account_circle</span>
           </Link>
-          <button aria-label="Notifications" className="text-on-surface dark:text-inverse-on-surface hover:text-secondary transition-colors">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
+
           <button 
             className="md:hidden text-on-surface dark:text-inverse-on-surface"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
