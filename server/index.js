@@ -348,4 +348,4 @@ if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
   });
 }
 
-module.exports = server;
+module.exports = app;
