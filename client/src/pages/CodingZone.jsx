@@ -124,7 +124,7 @@ function CodingZone({ isEmbedded = false, enrollmentId = null, resumeData = null
     else setCode('// Write your code here...');
   };
 
-  const handleRunCode = async () => {
+  const handleRunCode = () => {
     if (!selectedRuntime) return;
     
     if (isRunning && socketRef.current) {
@@ -141,38 +141,37 @@ function CodingZone({ isEmbedded = false, enrollmentId = null, resumeData = null
     }
 
     // Connect WebSocket
-    // Ensure valid URL without double slashes
-    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
-    const executeUrl = `${baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`}/execute`;
-
-    if (termInstance.current) {
-      termInstance.current.writeln('\x1b[33mRunning code via secure endpoint...\x1b[0m\r\n');
+    const socketUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api/', '') : 'http://localhost:5000';
+    if (socketRef.current) {
+      socketRef.current.disconnect();
     }
+    
+    const socket = io(socketUrl);
+    socketRef.current = socket;
 
-    try {
-      const response = await fetch(executeUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          language: selectedRuntime.language,
-          source: code
-        })
+    socket.on('connect', () => {
+      socket.emit('execute', {
+        language: selectedRuntime.language,
+        source: code
       });
+    });
 
-      const data = await response.json();
-      
+    let fullOutput = '';
+    
+    socket.on('output', (data) => {
       if (termInstance.current) {
-        if (data.error) {
-          termInstance.current.writeln(`\x1b[31mError:\x1b[0m ${data.error}\r\n`);
-        } else if (data.run) {
-          const formattedOutput = data.run.output.replace(/\n/g, '\r\n');
-          termInstance.current.write(formattedOutput);
-          termInstance.current.writeln(`\r\n\x1b[33mProcess exited with code ${data.run.code}\x1b[0m`);
-        }
+        termInstance.current.write(data);
       }
+      fullOutput += data;
+    });
 
+    socket.on('finished', async (exitCode) => {
+      if (termInstance.current) {
+        termInstance.current.writeln(`\r\n\x1b[33mProcess exited with code ${exitCode}\x1b[0m`);
+      }
+      setIsRunning(false);
+      socket.disconnect();
+      
       // Save recent build logic
       if (enrollmentId) {
         try {
@@ -185,17 +184,17 @@ function CodingZone({ isEmbedded = false, enrollmentId = null, resumeData = null
             }
           ]);
         } catch (err) {
-          console.error("Failed to save build", err);
+          console.error("Could not save recent build:", err);
         }
       }
-    } catch (err) {
+    });
+
+    socket.on('connect_error', (err) => {
       if (termInstance.current) {
-        termInstance.current.writeln(`\r\n\x1b[31mNetwork Error: Failed to execute code.\x1b[0m`);
+        termInstance.current.writeln(`\r\n\x1b[31mConnection error: ${err.message}\x1b[0m`);
       }
-      console.error(err);
-    } finally {
       setIsRunning(false);
-    }
+    });
   };
 
   if (loadingSession) {
