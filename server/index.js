@@ -145,8 +145,22 @@ app.post('/api/execute', (req, res) => {
     } else if (language === 'perl') {
       fileName = path.join(tmpDir, `${fileId}.pl`);
       command = `perl ${fileName}`;
+    } else if (language === 'go') {
+      fileName = path.join(tmpDir, `${fileId}.go`);
+      command = `go run ${fileName}`;
+    } else if (language === 'php') {
+      fileName = path.join(tmpDir, `${fileId}.php`);
+      command = `php ${fileName}`;
+    } else if (language === 'ruby') {
+      fileName = path.join(tmpDir, `${fileId}.rb`);
+      command = `ruby ${fileName}`;
+    } else if (language === 'kotlin') {
+      javaDir = path.join(tmpDir, fileId);
+      fs.mkdirSync(javaDir);
+      fileName = path.join(javaDir, `Main.kt`);
+      command = `kotlinc ${fileName} -include-runtime -d ${javaDir}/Main.jar && java -jar ${javaDir}/Main.jar`;
     } else {
-      return res.status(400).json({ error: 'Unsupported language. Supported: python, javascript, java, c, cpp, bash, perl.' });
+      return res.status(400).json({ error: 'Unsupported language. Supported: python, javascript, java, c, cpp, bash, perl, go, php, ruby, kotlin.' });
     }
 
     if (inputFileName) {
@@ -260,6 +274,29 @@ io.on('connection', (socket) => {
         fs.writeFileSync(fileName, source);
         runCommand = 'perl';
         runArgs = [fileName];
+      } else if (language === 'go') {
+        fileName = path.join(tmpDir, `${fileId}.go`);
+        fs.writeFileSync(fileName, source);
+        runCommand = 'go';
+        runArgs = ['run', fileName];
+      } else if (language === 'php') {
+        fileName = path.join(tmpDir, `${fileId}.php`);
+        fs.writeFileSync(fileName, source);
+        runCommand = 'php';
+        runArgs = [fileName];
+      } else if (language === 'ruby') {
+        fileName = path.join(tmpDir, `${fileId}.rb`);
+        fs.writeFileSync(fileName, source);
+        runCommand = 'ruby';
+        runArgs = [fileName];
+      } else if (language === 'kotlin') {
+        javaDir = path.join(tmpDir, fileId);
+        fs.mkdirSync(javaDir);
+        fileName = path.join(javaDir, `Main.kt`);
+        fs.writeFileSync(fileName, source);
+        compileCommand = `kotlinc ${fileName} -include-runtime -d ${javaDir}/Main.jar`;
+        runCommand = 'java';
+        runArgs = ['-jar', path.join(javaDir, 'Main.jar')];
       } else {
         socket.emit('output', 'Error: Unsupported language.\r\n');
         socket.emit('finished', 1);

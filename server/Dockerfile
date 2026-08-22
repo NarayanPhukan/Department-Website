@@ -8,6 +8,10 @@ RUN apt-get update && apt-get install -y \
     bash \
     curl \
     xz-utils \
+    unzip \
+    golang \
+    php-cli \
+    ruby \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Zig for C and C++ support
@@ -16,6 +20,13 @@ RUN mkdir -p /opt/zig && \
     tar -xf zig-linux-x86_64-0.13.0.tar.xz -C /opt/zig --strip-components=1 && \
     rm zig-linux-x86_64-0.13.0.tar.xz && \
     ln -s /opt/zig/zig /usr/local/bin/zig
+
+# Install Kotlin Compiler
+RUN curl -sLO https://github.com/JetBrains/kotlin/releases/download/v2.0.0/kotlin-compiler-2.0.0.zip && \
+    unzip kotlin-compiler-2.0.0.zip -d /opt/ && \
+    rm kotlin-compiler-2.0.0.zip && \
+    ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc && \
+    ln -s /opt/kotlinc/bin/kotlin /usr/local/bin/kotlin
 
 # Create app directory
 WORKDIR /usr/src/app

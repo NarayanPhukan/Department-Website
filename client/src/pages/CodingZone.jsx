@@ -93,7 +93,11 @@ function CodingZone({ isEmbedded = false, enrollmentId = null, resumeData = null
       { language: 'c', version: 'zig cc' },
       { language: 'c++', version: 'zig c++' },
       { language: 'bash', version: '5' },
-      { language: 'perl', version: '5' }
+      { language: 'perl', version: '5' },
+      { language: 'go', version: 'latest' },
+      { language: 'php', version: 'latest' },
+      { language: 'ruby', version: 'latest' },
+      { language: 'kotlin', version: '2.0.0' }
     ];
     setRuntimes(localRuntimes);
     setSelectedRuntime(localRuntimes[0]);
@@ -121,6 +125,10 @@ function CodingZone({ isEmbedded = false, enrollmentId = null, resumeData = null
     else if (runtime.language === 'javascript' || runtime.language === 'node') setCode('console.log("Hello World");');
     else if (runtime.language === 'java') setCode('public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello World");\n    }\n}');
     else if (runtime.language === 'c' || runtime.language === 'c++' || runtime.language === 'cpp') setCode('#include <stdio.h>\n\nint main() {\n    printf("Hello World\\n");\n    return 0;\n}');
+    else if (runtime.language === 'go') setCode('package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello World")\n}');
+    else if (runtime.language === 'php') setCode('<?php\n\necho "Hello World\\n";\n?>');
+    else if (runtime.language === 'ruby') setCode('puts "Hello World"');
+    else if (runtime.language === 'kotlin') setCode('fun main() {\n    println("Hello World")\n}');
     else setCode('// Write your code here...');
   };
 
