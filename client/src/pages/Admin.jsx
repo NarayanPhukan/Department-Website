@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { HeroManager, HighlightsManager, ContactManager, EventsManager, AboutManager, AlumniManager, BatchesManager } from '../components/CMSManagers';
+import ExamManager from '../components/ExamManager';
 import { toast } from 'react-hot-toast';
-
 function Admin() {
   const [subjects, setSubjects] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -165,6 +165,10 @@ function Admin() {
           <button onClick={() => setActiveTab('curriculum')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'curriculum' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
             <span className="material-symbols-outlined" data-icon="terminal">terminal</span>
             <span className="font-label-md text-label-md">Curriculum</span>
+          </button>
+          <button onClick={() => setActiveTab('exams')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'exams' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
+            <span className="material-symbols-outlined" data-icon="quiz">quiz</span>
+            <span className="font-label-md text-label-md">Exams</span>
           </button>
           <button onClick={() => setActiveTab('applications')} className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all active:scale-98 duration-100 ${activeTab === 'applications' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest'}`}>
             <span className="material-symbols-outlined" data-icon="description">description</span>
@@ -363,6 +367,7 @@ function Admin() {
         {activeTab === 'about' && <AboutManager pages={pages} onSaved={fetchData} />}
         {activeTab === 'alumni' && <AlumniManager pages={pages} onSaved={fetchData} />}
         {activeTab === 'batches' && <BatchesManager pages={pages} onSaved={fetchData} />}
+        {activeTab === 'exams' && <ExamManager />}
 
         {activeTab === 'applications' && (
           <div className="flex flex-col gap-xl">

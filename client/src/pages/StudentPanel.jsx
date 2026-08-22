@@ -10,6 +10,7 @@ import StudentProfile from '../components/StudentProfile';
 import RecentBuilds from '../components/RecentBuilds';
 import EnhancerList from '../components/EnhancerList';
 import EnhancerSolver from '../components/EnhancerSolver';
+import StudentExamView from '../components/StudentExamView';
 import { problems } from '../data/problems';
 
 function StudentPanel() {
@@ -121,6 +122,15 @@ function StudentPanel() {
             <span className="font-label-md">My Syllabus</span>
           </button>
 
+          {/* Exams */}
+          <button 
+            onClick={() => setActiveTab('exams')} 
+            className={`flex items-center gap-sm px-sm py-2 rounded-lg transition-all ${activeTab === 'exams' ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+          >
+            <span className="material-symbols-outlined text-[20px]">quiz</span>
+            <span className="font-label-md">Exams</span>
+          </button>
+
           {/* Profile */}
           <button 
             onClick={() => setActiveTab('profile')} 
@@ -175,6 +185,7 @@ function StudentPanel() {
           )
         )}
         {activeTab === 'syllabus' && <StudentSyllabus applications={studentApps} />}
+        {activeTab === 'exams' && <StudentExamView applications={studentApps} />}
         {activeTab === 'profile' && <StudentProfile applications={studentApps} setStudentApps={setStudentApps} />}
       </main>
     </div>
