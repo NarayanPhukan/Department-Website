@@ -141,8 +141,9 @@ function CodingZone({ isEmbedded = false, enrollmentId = null, resumeData = null
     }
 
     // Connect WebSocket
-    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const executeUrl = `${socketUrl}/execute`.replace('api/api', 'api'); // ensure no double /api
+    // Ensure valid URL without double slashes
+    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
+    const executeUrl = `${baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`}/execute`;
 
     if (termInstance.current) {
       termInstance.current.writeln('\x1b[33mRunning code via secure endpoint...\x1b[0m\r\n');
